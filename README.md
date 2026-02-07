@@ -2,7 +2,8 @@
 
 <img src="./banner.png" alt="Dashboard Screenshot" width="600">
 
-A lightweight dashboard that tracks merge request contributions across GitLab repositories. It ranks contributors using a configurable scoring system based on MRs authored, comments, approvals, lines of code, and Jira bug priority.
+A lightweight dashboard that tracks merge request contributions across GitLab repositories.
+It ranks contributors using a configurable scoring system based on MRs authored, comments, approvals, lines of code, and Jira bug priority.
 
 ## Features
 

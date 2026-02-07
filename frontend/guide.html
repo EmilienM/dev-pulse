@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guide — GitLab Contributions Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .guide {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .guide h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 2rem 0 0.5rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .guide h2:first-of-type { margin-top: 1rem; }
+    .guide p, .guide li {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    .guide ul { padding-left: 1.25rem; margin: 0.4rem 0; }
+    .guide li { margin-bottom: 0.25rem; }
+    .guide code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.82rem;
+      background: var(--bg-tertiary);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: var(--text-primary);
+    }
+    .guide pre {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      overflow-x: auto;
+      margin: 0.5rem 0 1rem;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+    .guide table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.5rem 0 1rem;
+      font-size: 0.82rem;
+    }
+    .guide th, .guide td {
+      text-align: left;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    .guide th {
+      background: var(--bg-tertiary);
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .guide td { color: var(--text-secondary); }
+    .guide .back-link {
+      display: inline-block;
+      font-size: 0.85rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .guide .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <h1 class="header-title">Guide</h1>
+      <div class="header-actions">
+        <a href="index.html" class="btn-export" style="text-decoration:none;display:inline-flex;align-items:center;">Dashboard</a>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+          <span class="theme-icon" id="theme-icon">&#9790;</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="guide">
+    <a href="index.html" class="back-link">&larr; Back to dashboard</a>
+
+    <h2>What is this?</h2>
+    <p>
+      A lightweight dashboard that tracks merge request contributions across
+      one or more private GitLab repositories. It ranks contributors using a
+      configurable scoring system based on MRs authored, comments, approvals,
+      lines of code, and Jira bug priority.
+    </p>
+
+    <h2>Quick start</h2>
+    <ol>
+      <li>Install Python dependencies: <code>pip install -r requirements.txt</code></li>
+      <li>Set your GitLab token: <code>export GITLAB_TOKEN="glpat-..."</code></li>
+      <li>Set your Jira token (optional): <code>export JIRA_API_TOKEN="..."</code></li>
+      <li>Configure repositories in <code>repos.yaml</code></li>
+      <li>Fetch data: <code>python fetch_data.py</code></li>
+      <li>Serve the frontend: <code>cd frontend && python -m http.server 8080</code></li>
+    </ol>
+
+    <h2>Fetching data</h2>
+    <p>
+      <code>fetch_data.py</code> calls the GitLab API to collect merge requests,
+      diffs, comments, and approvals. If <code>JIRA_API_TOKEN</code> is set, it also
+      extracts Jira ticket IDs from MR titles and fetches their priority.
+      Output is written to <code>frontend/data/data.json</code>.
+    </p>
+    <pre>python fetch_data.py -n 50   # fetch the 50 most recent MRs per repo (default: 20)</pre>
+    <table>
+      <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+      <tr><td><code>GITLAB_TOKEN</code></td><td>Yes</td><td>GitLab PAT with <code>read_api</code> scope</td></tr>
+      <tr><td><code>JIRA_API_TOKEN</code></td><td>No</td><td>Jira PAT for bug priority lookup (issues.redhat.com)</td></tr>
+    </table>
+    <p>
+      Jira ticket IDs are extracted from MR titles using the pattern <code>PROJECT-123</code>
+      (e.g. <code>RHEL-4567: fix foobar</code>). MRs without a Jira key get
+      an "Undefined" priority.
+    </p>
+
+    <h2>Repository configuration</h2>
+    <p>Repositories are listed in <code>repos.yaml</code> at the project root.</p>
+    <pre>repositories:
+  - url: https://gitlab.com/org/project-a
+  - url: https://gitlab.com/org/docs-repo
+    skip_scoring:
+      - lines        # exclude LOC from scoring for this repo</pre>
+    <p>
+      <code>skip_scoring</code> accepts any combination of:
+    </p>
+    <table>
+      <tr><th>Value</th><th>Effect</th></tr>
+      <tr><td><code>lines</code></td><td>Excludes lines added / deleted from scoring</td></tr>
+      <tr><td><code>comments</code></td><td>Excludes comments from scoring</td></tr>
+      <tr><td><code>approvals</code></td><td>Excludes approvals from scoring</td></tr>
+    </table>
+
+    <h2>Scoring system</h2>
+    <p>
+      Weights are defined in <code>frontend/score-config.json</code> and can be
+      adjusted without touching any code.
+    </p>
+    <table>
+      <tr><th>Action</th><th>Config key</th><th>Default</th></tr>
+      <tr><td>MR merged</td><td><code>mr_merged</code></td><td>10</td></tr>
+      <tr><td>MR opened (not merged)</td><td><code>mr_open</code></td><td>1</td></tr>
+      <tr><td>Comment posted</td><td><code>comment</code></td><td>3</td></tr>
+      <tr><td>Approval given</td><td><code>approval</code></td><td>2</td></tr>
+      <tr><td>Line added</td><td><code>line_added</code></td><td>0.05</td></tr>
+      <tr><td>Line deleted</td><td><code>line_deleted</code></td><td>0.02</td></tr>
+      <tr><td>Critical bug fix</td><td><code>priority_critical</code></td><td>15</td></tr>
+      <tr><td>Major bug fix</td><td><code>priority_major</code></td><td>8</td></tr>
+      <tr><td>Normal bug fix</td><td><code>priority_normal</code></td><td>3</td></tr>
+      <tr><td>Minor bug fix</td><td><code>priority_minor</code></td><td>1</td></tr>
+      <tr><td>Undefined priority</td><td><code>priority_undefined</code></td><td>0</td></tr>
+    </table>
+
+    <h2>Available metrics</h2>
+    <p>Use the "Rank by" dropdown to switch between:</p>
+    <ul>
+      <li><strong>Score</strong> — weighted total (default)</li>
+      <li><strong>Total MRs</strong> — all authored merge requests</li>
+      <li><strong>Merged MRs / Open MRs</strong> — filtered by state</li>
+      <li><strong>Lines Added / Lines Changed</strong> — code volume</li>
+      <li><strong>Comments</strong> — review comments posted</li>
+      <li><strong>Approvals</strong> — approvals given</li>
+      <li><strong>Bug Priority</strong> — points from Jira ticket priority (Critical / Major / Normal / Minor)</li>
+    </ul>
+
+    <h2>Timeline &amp; period filtering</h2>
+    <p>
+      The timeline chart shows MR activity over time. The granularity buttons
+      (Day / Week / Month / Year) control both the chart grouping and the
+      leaderboard period — contributors are ranked based on the current
+      day, week, month, or year.
+    </p>
+
+    <h2>PDF export</h2>
+    <p>
+      Click the <strong>PDF</strong> button to generate a report with the chart,
+      contributor table, and scoring legend (when ranked by Score).
+    </p>
+  </div>
+
+  <script>
+    // Theme toggle (reused from main app)
+    const themeToggle = document.getElementById("theme-toggle");
+    const themeIcon = document.getElementById("theme-icon");
+    function applyTheme(t) {
+      document.documentElement.setAttribute("data-theme", t);
+      themeIcon.textContent = t === "dark" ? "\u263E" : "\u2600";
+    }
+    applyTheme(localStorage.getItem("theme") || "dark");
+    themeToggle.addEventListener("click", () => {
+      const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      localStorage.setItem("theme", next);
+      applyTheme(next);
+    });
+  </script>
+</body>
+</html>

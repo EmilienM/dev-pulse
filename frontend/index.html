@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitLab Contributions Tracker</title>
+  <link rel="stylesheet" href="style.css?v=3">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <h1 class="header-title">GitLab Contributions</h1>
+      <div class="header-actions">
+        <a href="guide.html" class="btn-guide" aria-label="Guide">Guide</a>
+        <button id="btn-settings" class="btn-guide" aria-label="Settings">Settings</button>
+        <button id="export-pdf" class="btn-export" aria-label="Export to PDF">PDF</button>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+          <span class="theme-icon" id="theme-icon">&#9790;</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="loading" class="loading">Loading data...</div>
+    <div id="error" class="error" hidden></div>
+
+    <div id="app" hidden>
+      <!-- Controls -->
+      <section class="controls">
+        <div class="filter-group">
+          <label for="filter-repo">Repository</label>
+          <select id="filter-repo">
+            <option value="">All Repositories</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="metric-select">Rank by</label>
+          <select id="metric-select"></select>
+        </div>
+        <div class="filter-meta">
+          <span id="generated-at" class="generated-at"></span>
+        </div>
+      </section>
+
+      <!-- Score Legend -->
+      <section id="score-legend" class="score-legend" hidden>
+        <h3 class="score-legend-title">Scoring</h3>
+        <div class="score-legend-items" id="score-legend-items"></div>
+      </section>
+
+      <!-- Timeline -->
+      <section class="timeline-section">
+        <div class="timeline-header">
+          <h2 class="timeline-title">Activity Timeline</h2>
+          <div class="granularity-toggle" id="granularity-toggle">
+            <button class="gran-btn" data-gran="day">Day</button>
+            <button class="gran-btn active" data-gran="week">Week</button>
+            <button class="gran-btn" data-gran="month">Month</button>
+            <button class="gran-btn" data-gran="year">Year</button>
+          </div>
+        </div>
+        <div class="timeline-chart-wrap">
+          <canvas id="timeline-chart"></canvas>
+        </div>
+      </section>
+
+      <!-- Leaderboard -->
+      <section class="leaderboard">
+        <div class="leaderboard-period" id="leaderboard-period"></div>
+        <div class="leaderboard-header">
+          <span class="lh-rank">#</span>
+          <span class="lh-contributor">Contributor</span>
+          <span class="lh-bar">Relative to #1</span>
+          <span class="lh-breakdown">Breakdown</span>
+          <span class="lh-value">Score</span>
+        </div>
+        <div id="leaderboard-body"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settings-overlay" class="modal-overlay" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Score Settings</h2>
+        <button id="settings-close" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="settings-body"></div>
+      <div class="modal-footer">
+        <button id="settings-reset" class="btn-guide">Reset to defaults</button>
+        <button id="settings-save" class="btn-export">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=3"></script>
+</body>
+</html>

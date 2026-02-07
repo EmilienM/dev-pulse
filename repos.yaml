@@ -1,0 +1,16 @@
+# Each entry can be a URL string or an object with options.
+# skip_scoring: list of scoring categories to exclude for this repo.
+# Valid values: lines, comments, approvals
+#
+# Example: a docs-heavy repo where LOC scoring is unfair
+# - url: https://gitlab.com/org/docs-repo
+#   skip_scoring:
+#     - lines
+repositories:
+  - url: https://gitlab.com/gitlab-org/gitlab
+  - url: https://gitlab.com/gitlab-org/gitlab-runner
+  - url: https://gitlab.com/gitlab-org/gitlab-docs
+    skip_scoring:
+      - lines
+  - url: https://gitlab.com/fdroid/fdroidclient
+  - url: https://gitlab.com/postmarketos/pmaports

@@ -1,0 +1,13 @@
+{
+  "mr_open": 1,
+  "mr_merged": 10,
+  "comment": 3,
+  "approval": 2,
+  "line_added": 0.05,
+  "line_deleted": 0.02,
+  "priority_critical": 15,
+  "priority_major": 8,
+  "priority_normal": 3,
+  "priority_minor": 1,
+  "priority_undefined": 0
+}

@@ -11,6 +11,7 @@ It ranks contributors using a configurable scoring system based on MRs authored,
 - **Configurable scoring** — Customizable weights for different contribution types
 - **Jira integration** — Extract bug priority from MR titles and include in scoring
 - **Interactive timeline** — Click timeline bars to filter by specific time periods
+- **Progress tracking** — Monitor contributor activity trends over time with visual progress metrics
 - **Multiple metrics** — Score, MR count, lines of code, comments, approvals, bug priority
 - **PDF export** — Generate reports with charts and contributor tables
 - **Dark/light themes** — Responsive UI with theme switching
@@ -51,7 +52,17 @@ It ranks contributors using a configurable scoring system based on MRs authored,
 4. **Fetch data**
    ```bash
    python fetch_data.py -n 50  # Fetch 50 most recent MRs per repo
+
+   # Additional options:
+   python fetch_data.py -n 100 -w 8              # Use 8 workers for faster fetching
+   python fetch_data.py -r custom-repos.yaml     # Use custom repos config file
+   python fetch_data.py -n 30 -w 6 -r repos.yaml # Combine options
    ```
+
+   **Options:**
+   - `-n, --limit`: Number of most recent MRs to fetch per repo (default: 20)
+   - `-w, --workers`: Number of concurrent threads for fetching MR details (default: 4)
+   - `-r, --repos`: Path to repos configuration file (default: repos.yaml)
 
 5. **Run the UI**
    ```bash

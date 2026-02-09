@@ -423,10 +423,15 @@
   const detailCollaborators = $("#detail-collaborators");
   const detailChartsEl = $("#detail-charts");
   const detailGranToggle = $("#detail-gran-toggle");
+  const detailPeriodNav = $("#detail-period-nav");
+  const detailPeriodPrev = $("#detail-period-prev");
+  const detailPeriodNext = $("#detail-period-next");
+  const detailPeriodLabel = $("#detail-period-label");
   let detailCharts = [];
   let detailGranularity = "month";
+  let detailPeriodOffset = 0;
   let detailCurrentUsername = null;
-  let currentGranularity = "week";
+  let currentGranularity = "month";
   let selectedPeriodKey = null;   // null = current period, string = a specific bucket key
   let timelineBucketKeys = [];    // raw keys for each bar index
 
@@ -1218,20 +1223,31 @@
       const pageH = doc.internal.pageSize.getHeight();
       let y = 15;
 
-      // Get contributor data
-      const mrs = getFilteredMRs();
-      const contributors = buildContributors(mrs);
-      const contributor = contributors.find((c) => c.username === detailCurrentUsername);
-      if (!contributor) return;
+      // Get period-filtered contributor data (matches what the modal shows)
+      const periodMRs = getDetailPeriodMRs(detailGranularity, detailPeriodOffset);
+      const periodContributors = buildContributors(periodMRs);
+      const contributor = periodContributors.find((c) => c.username === detailCurrentUsername);
 
-      // Calculate metrics for the contributor
+      // Also get all-time data for badges and header name/avatar
+      const allMRsFiltered = getFilteredMRs();
+      const allContributors = buildContributors(allMRsFiltered);
+      const allTimeContributor = allContributors.find((c) => c.username === detailCurrentUsername);
+      if (!allTimeContributor) return;
+
+      // Use period contributor for metrics/repos, fall back if no activity in period
+      const periodC = contributor || { username: detailCurrentUsername, name: allTimeContributor.name, authored_mrs: [], comments: 0, commentsOnOwn: 0, approvals: 0 };
+
+      // Calculate metrics for the period contributor
       for (const metric of METRICS) {
-        contributor[`metric_${metric.id}`] = metric.compute(contributor);
+        periodC[`metric_${metric.id}`] = metric.compute(periodC);
       }
 
-      // Compute badges
-      computeBadges(contributors);
-      const badges = contributor.badges || [];
+      // Compute badges from all-time data
+      computeBadges(allContributors);
+      const badges = allTimeContributor.badges || [];
+
+      // Period label
+      const pdfPeriodLabel = getDetailPeriodLabel(detailGranularity, detailPeriodOffset);
 
       // Title
       doc.setFontSize(18);
@@ -1242,15 +1258,15 @@
       // Contributor name and username
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text(`${contributor.name} (@${contributor.username})`, 14, y);
+      doc.text(`${allTimeContributor.name} (@${allTimeContributor.username})`, 14, y);
       y += 6;
 
-      // Badges
+      // Badges — plain text, comma-separated, no icons
       if (badges.length > 0) {
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(80);
-        doc.text("Badges: " + badges.map((b) => `${b.icon} ${b.label}`).join("  |  "), 14, y);
+        doc.text("Badges: " + badges.map((b) => b.label).join(", "), 14, y);
         doc.setTextColor(0);
         y += 5;
       }
@@ -1261,7 +1277,7 @@
       doc.setTextColor(100);
       const repoLabel = filterRepo.value || "All Repositories";
       const genDate = generatedAt ? new Date(generatedAt).toLocaleString() : "N/A";
-      doc.text(`Repository: ${repoLabel}  |  Data from: ${genDate}`, 14, y);
+      doc.text(`Repository: ${repoLabel}  |  Period: ${pdfPeriodLabel}  |  Data from: ${genDate}`, 14, y);
       doc.setTextColor(0);
       y += 6;
 
@@ -1279,7 +1295,7 @@
       // Create metrics table
       const metricsData = METRICS.map(metric => [
         metric.label,
-        contributor[`metric_${metric.id}`].toLocaleString()
+        periodC[`metric_${metric.id}`].toLocaleString()
       ]);
 
       doc.autoTable({
@@ -1309,7 +1325,7 @@
       y += 6;
 
       const repoMap = new Map();
-      for (const mr of contributor.authored_mrs) {
+      for (const mr of periodC.authored_mrs) {
         if (!repoMap.has(mr.repoName)) {
           repoMap.set(mr.repoName, { count: 0, merged: 0, adds: 0, dels: 0 });
         }
@@ -1350,7 +1366,7 @@
         y = doc.lastAutoTable.finalY + 8;
       }
 
-      // Recent merge requests
+      // Recent merge requests (from the period)
       if (y > pageH - 40) {
         doc.addPage();
         y = 15;
@@ -1358,10 +1374,10 @@
 
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.text("Recent Merge Requests", 14, y);
+      doc.text("Merge Requests", 14, y);
       y += 6;
 
-      const recentMRs = [...contributor.authored_mrs]
+      const recentMRs = [...periodC.authored_mrs]
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 15);
 
@@ -1405,7 +1421,7 @@
       doc.setTextColor(150);
       doc.text(`Generated on ${new Date().toLocaleString()} — GitLab Contributions Tracker`, 14, y);
 
-      const filename = `contributor-${contributor.username}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const filename = `contributor-${allTimeContributor.username}-${new Date().toISOString().slice(0, 10)}.pdf`;
       doc.save(filename);
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -1690,6 +1706,101 @@
     return result;
   }
 
+  // --- Detail period filtering ---
+  function getDetailPeriodMRs(period, offset = 0) {
+    const mrs = getFilteredMRs();
+    if (period === "all") return mrs;
+
+    const now = new Date();
+    const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    let startDate, endDate;
+
+    if (period === "week") {
+      startDate = mondayOf(nowUTC);
+      startDate = new Date(startDate);
+      startDate.setUTCDate(startDate.getUTCDate() + (offset * 7));
+      endDate = new Date(startDate);
+      endDate.setUTCDate(endDate.getUTCDate() + 6);
+    } else if (period === "month") {
+      startDate = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth() + offset, 1));
+      endDate = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth() + offset + 1, 0));
+    } else if (period === "year") {
+      const targetYear = nowUTC.getUTCFullYear() + offset;
+      startDate = new Date(Date.UTC(targetYear, 0, 1));
+      endDate = new Date(Date.UTC(targetYear, 11, 31));
+    }
+
+    return mrs.filter((mr) => {
+      const d = utcDate(mr.created_at);
+      return d >= startDate && d <= endDate;
+    });
+  }
+
+  function getDetailPeriodLabel(period, offset = 0) {
+    const now = new Date();
+    const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const FULL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+    if (period === "week") {
+      const currentMonday = mondayOf(nowUTC);
+      const targetMonday = new Date(currentMonday);
+      targetMonday.setUTCDate(targetMonday.getUTCDate() + (offset * 7));
+      const targetSunday = new Date(targetMonday);
+      targetSunday.setUTCDate(targetSunday.getUTCDate() + 6);
+      const mLabel = `${SHORT_MONTHS[targetMonday.getUTCMonth()]} ${targetMonday.getUTCDate()}`;
+      const sLabel = `${SHORT_MONTHS[targetSunday.getUTCMonth()]} ${targetSunday.getUTCDate()}`;
+      return `${mLabel} – ${sLabel}, ${targetMonday.getUTCFullYear()}`;
+    }
+    if (period === "month") {
+      const targetMonth = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth() + offset, 1));
+      return `${FULL_MONTHS[targetMonth.getUTCMonth()]} ${targetMonth.getUTCFullYear()}`;
+    }
+    if (period === "year") {
+      return String(nowUTC.getUTCFullYear() + offset);
+    }
+    return "All Time";
+  }
+
+  function updateDetailPeriodNav(period, offset) {
+    if (period === "all") {
+      detailPeriodNav.hidden = true;
+      return;
+    }
+    detailPeriodNav.hidden = false;
+    detailPeriodLabel.textContent = getDetailPeriodLabel(period, offset);
+    detailPeriodNext.disabled = (offset >= 0);
+    detailPeriodPrev.disabled = false;
+  }
+
+  function renderDetailPeriodSections(username, period, offset = 0) {
+    const periodMRs = getDetailPeriodMRs(period, offset);
+    const periodContributors = buildContributors(periodMRs);
+    const contributor = periodContributors.find((c) => c.username === username);
+
+    if (contributor) {
+      renderDetailMetrics(contributor);
+      renderDetailRepos(contributor);
+    } else {
+      // No activity in this period
+      detailMetrics.innerHTML = METRICS.map((m) =>
+        `<div class="detail-metric-card">
+          <div class="detail-metric-value">0</div>
+          <div class="detail-metric-label">${escapeHtml(m.label)}</div>
+        </div>`
+      ).join("");
+      detailRepos.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No repositories</div>';
+    }
+
+    renderDetailCharts(username, period, offset);
+    renderDetailCollaborators(
+      contributor || { username, name: username, authored_mrs: [], comments: 0, commentsOnOwn: 0, approvals: 0 },
+      periodMRs,
+      periodContributors
+    );
+
+    updateDetailPeriodNav(period, offset);
+  }
+
   // --- Contributor Detail Modal ---
   function openContributorDetail(username) {
     const mrs = getFilteredMRs();
@@ -1697,7 +1808,7 @@
     const contributor = contributors.find((c) => c.username === username);
     if (!contributor) return;
 
-    // Header
+    // Header (uses all-time data)
     if (contributor.avatar_url) {
       detailAvatar.src = contributor.avatar_url;
       detailAvatar.hidden = false;
@@ -1707,7 +1818,7 @@
     detailName.textContent = contributor.name;
     detailUsername.textContent = `@${contributor.username}`;
 
-    // Compute and render badges for this contributor
+    // Compute and render badges for this contributor (all-time)
     computeBadges(contributors);
     const badges = contributor.badges || [];
     detailBadges.innerHTML = badges.length
@@ -1715,10 +1826,12 @@
       : "";
 
     detailCurrentUsername = username;
-    renderDetailMetrics(contributor);
-    renderDetailCollaborators(contributor, mrs, contributors);
-    renderDetailCharts(username, detailGranularity);
-    renderDetailRepos(contributor);
+    detailPeriodOffset = 0;
+
+    // Period-dependent sections (Metrics, Charts, Collaborators, Repos)
+    renderDetailPeriodSections(username, detailGranularity, detailPeriodOffset);
+
+    // Recent MRs always uses all-time data
     renderDetailMRs(contributor);
 
     detailOverlay.hidden = false;
@@ -1778,26 +1891,57 @@
   // "week"  → last 7 days,    daily   buckets
   // "month" → last ~4 weeks,  weekly  buckets
   // "year"  → last 12 months, monthly buckets
-  function getDetailRange(period) {
+  function getDetailRange(period, offset = 0) {
     const now = new Date();
     const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
     if (period === "week") {
-      const start = new Date(nowUTC);
-      start.setUTCDate(start.getUTCDate() - 6);
-      return { gran: "day", startKey: toKey(start), endKey: toKey(nowUTC) };
+      // Calendar week (Mon–Sun), shifted by offset weeks
+      const currentMonday = mondayOf(nowUTC);
+      const targetMonday = new Date(currentMonday);
+      targetMonday.setUTCDate(targetMonday.getUTCDate() + (offset * 7));
+      const targetSunday = new Date(targetMonday);
+      targetSunday.setUTCDate(targetSunday.getUTCDate() + 6);
+      // Cap at today so future days don't appear
+      const end = targetSunday > nowUTC ? nowUTC : targetSunday;
+      return { gran: "day", startKey: toKey(targetMonday), endKey: toKey(end) };
     }
     if (period === "month") {
-      const curMonday = mondayOf(nowUTC);
-      const start = new Date(curMonday);
-      start.setUTCDate(start.getUTCDate() - 21); // 3 weeks back → 4 weeks total
-      return { gran: "week", startKey: toKey(start), endKey: toKey(curMonday) };
+      // Calendar month, weekly buckets, shifted by offset months
+      const targetMonth = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth() + offset, 1));
+      const firstMonday = mondayOf(targetMonth);
+      const lastDay = new Date(Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth() + 1, 0));
+      const lastMonday = mondayOf(lastDay);
+      // Cap at current week so future weeks don't appear
+      const currentMonday = mondayOf(nowUTC);
+      const end = lastMonday > currentMonday ? currentMonday : lastMonday;
+      return { gran: "week", startKey: toKey(firstMonday), endKey: toKey(end) };
     }
-    // year → last 12 months
+    if (period === "year") {
+      // Calendar year, monthly buckets, shifted by offset years
+      const targetYear = nowUTC.getUTCFullYear() + offset;
+      const endMonth = (targetYear === nowUTC.getUTCFullYear())
+        ? nowUTC.getUTCMonth() + 1
+        : 12;
+      return { gran: "month", startKey: `${targetYear}-01`, endKey: `${targetYear}-${String(endMonth).padStart(2, "0")}` };
+    }
+    if (period === "all") {
+      const mrs = getFilteredMRs();
+      const endKey = `${nowUTC.getUTCFullYear()}-${String(nowUTC.getUTCMonth() + 1).padStart(2, "0")}`;
+      if (mrs.length === 0) {
+        return { gran: "month", startKey: endKey, endKey };
+      }
+      let earliest = null;
+      for (const mr of mrs) {
+        const d = utcDate(mr.created_at);
+        if (!earliest || d < earliest) earliest = d;
+      }
+      const startKey = `${earliest.getUTCFullYear()}-${String(earliest.getUTCMonth() + 1).padStart(2, "0")}`;
+      return { gran: "month", startKey, endKey };
+    }
+    // fallback — same as year offset 0
     const endKey = `${nowUTC.getUTCFullYear()}-${String(nowUTC.getUTCMonth() + 1).padStart(2, "0")}`;
-    const startDate = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth() - 11, 1));
-    const startKey = `${startDate.getUTCFullYear()}-${String(startDate.getUTCMonth() + 1).padStart(2, "0")}`;
-    return { gran: "month", startKey, endKey };
+    return { gran: "month", startKey: `${nowUTC.getUTCFullYear()}-01`, endKey };
   }
 
   function computePerBucketData(username, allMRsFiltered, gran, startKey, endKey) {
@@ -1860,12 +2004,12 @@
     return result;
   }
 
-  function renderDetailCharts(username, period) {
+  function renderDetailCharts(username, period, offset = 0) {
     for (const chart of detailCharts) chart.destroy();
     detailCharts = [];
     detailChartsEl.innerHTML = "";
 
-    const { gran, startKey, endKey } = getDetailRange(period);
+    const { gran, startKey, endKey } = getDetailRange(period, offset);
     const data = computePerBucketData(username, getFilteredMRs(), gran, startKey, endKey);
     if (data.length === 0) {
       detailChartsEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No activity data</div>';
@@ -2012,7 +2156,20 @@
     detailGranToggle.querySelectorAll(".gran-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     detailGranularity = btn.dataset.gran;
-    if (detailCurrentUsername) renderDetailCharts(detailCurrentUsername, detailGranularity);
+    detailPeriodOffset = 0;
+    if (detailCurrentUsername) renderDetailPeriodSections(detailCurrentUsername, detailGranularity, detailPeriodOffset);
+  });
+
+  detailPeriodPrev.addEventListener("click", () => {
+    detailPeriodOffset--;
+    if (detailCurrentUsername) renderDetailPeriodSections(detailCurrentUsername, detailGranularity, detailPeriodOffset);
+  });
+
+  detailPeriodNext.addEventListener("click", () => {
+    if (detailPeriodOffset < 0) {
+      detailPeriodOffset++;
+      if (detailCurrentUsername) renderDetailPeriodSections(detailCurrentUsername, detailGranularity, detailPeriodOffset);
+    }
   });
 
   detailClose.addEventListener("click", closeContributorDetail);

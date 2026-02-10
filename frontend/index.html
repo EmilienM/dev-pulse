@@ -72,6 +72,12 @@
             <button class="gran-btn" data-gran="week">Week</button>
             <button class="gran-btn active" data-gran="month">Month</button>
             <button class="gran-btn" data-gran="year">Year</button>
+            <button class="gran-btn" data-gran="custom">Custom</button>
+          </div>
+          <div class="custom-range-picker" id="custom-range-picker" hidden>
+            <label>From <input type="date" id="custom-range-start"></label>
+            <label>To <input type="date" id="custom-range-end"></label>
+            <button class="custom-range-apply" id="custom-range-apply">Apply</button>
           </div>
         </div>
         <div class="timeline-chart-wrap">
@@ -136,6 +142,12 @@
                 <button class="gran-btn active" data-gran="month">Month</button>
                 <button class="gran-btn" data-gran="year">Year</button>
                 <button class="gran-btn" data-gran="all">All</button>
+                <button class="gran-btn" data-gran="custom">Custom</button>
+              </div>
+              <div class="custom-range-picker" id="detail-custom-range-picker" hidden>
+                <label>From <input type="date" id="detail-custom-range-start"></label>
+                <label>To <input type="date" id="detail-custom-range-end"></label>
+                <button class="custom-range-apply" id="detail-custom-range-apply">Apply</button>
               </div>
               <div class="detail-period-nav" id="detail-period-nav">
                 <button class="detail-period-btn" id="detail-period-prev" aria-label="Previous period">&#8249;</button>

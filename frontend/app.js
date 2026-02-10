@@ -431,6 +431,14 @@
   const detailPeriodPrev = $("#detail-period-prev");
   const detailPeriodNext = $("#detail-period-next");
   const detailPeriodLabel = $("#detail-period-label");
+  const customRangePicker = $("#custom-range-picker");
+  const customRangeStartInput = $("#custom-range-start");
+  const customRangeEndInput = $("#custom-range-end");
+  const customRangeApply = $("#custom-range-apply");
+  const detailCustomRangePicker = $("#detail-custom-range-picker");
+  const detailCustomRangeStartInput = $("#detail-custom-range-start");
+  const detailCustomRangeEndInput = $("#detail-custom-range-end");
+  const detailCustomRangeApply = $("#detail-custom-range-apply");
   let detailCharts = [];
   let detailGranularity = "month";
   let detailPeriodOffset = 0;
@@ -438,6 +446,10 @@
   let currentGranularity = "month";
   let selectedPeriodKey = null;   // null = current period, string = a specific bucket key
   let timelineBucketKeys = [];    // raw keys for each bar index
+  let customRangeStart = null;    // "YYYY-MM-DD" or null
+  let customRangeEnd = null;
+  let detailCustomRangeStart = null;
+  let detailCustomRangeEnd = null;
 
   // --- Theme ---
   function initTheme() {
@@ -746,6 +758,21 @@
     btn.classList.add("active");
     currentGranularity = btn.dataset.gran;
     selectedPeriodKey = null;
+    if (currentGranularity === "custom") {
+      customRangePicker.hidden = false;
+      return; // wait for Apply
+    }
+    customRangePicker.hidden = true;
+    render();
+  });
+
+  customRangeApply.addEventListener("click", () => {
+    const start = customRangeStartInput.value;
+    const end = customRangeEndInput.value;
+    if (!start || !end || start > end) return;
+    customRangeStart = start;
+    customRangeEnd = end;
+    selectedPeriodKey = null;
     render();
   });
 
@@ -759,6 +786,7 @@
 
   // --- Time-period filter for leaderboard ---
   function currentPeriodKey(gran) {
+    if (gran === "custom") return "custom";
     const now = new Date();
     const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     if (gran === "day") return toKey(nowUTC);
@@ -770,10 +798,31 @@
 
   function filterMRsToPeriod(mrs, gran, periodKey) {
     if (!periodKey) return mrs;
+    if (gran === "custom" && periodKey === "custom") {
+      if (!customRangeStart || !customRangeEnd) return mrs;
+      return mrs.filter((mr) => {
+        const d = toKey(utcDate(mr.created_at));
+        return d >= customRangeStart && d <= customRangeEnd;
+      });
+    }
     return mrs.filter((mr) => getBucketKey(mr.created_at, gran) === periodKey);
   }
 
+  function formatCustomRangeLabel(startStr, endStr) {
+    const s = new Date(startStr + "T00:00:00Z");
+    const e = new Date(endStr + "T00:00:00Z");
+    const sLabel = `${SHORT_MONTHS[s.getUTCMonth()]} ${s.getUTCDate()}`;
+    const eLabel = `${SHORT_MONTHS[e.getUTCMonth()]} ${e.getUTCDate()}, ${e.getUTCFullYear()}`;
+    return `${sLabel} – ${eLabel}`;
+  }
+
   function periodLabel(gran, periodKey) {
+    if (gran === "custom") {
+      if (customRangeStart && customRangeEnd) {
+        return formatCustomRangeLabel(customRangeStart, customRangeEnd);
+      }
+      return "custom range";
+    }
     const curKey = currentPeriodKey(gran);
     if (periodKey === curKey) {
       if (gran === "day") return "today";
@@ -1013,7 +1062,7 @@
     return `${SHORT_MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
   }
 
-  function buildTimelineBuckets(mrs, gran) {
+  function buildTimelineBuckets(mrs, gran, filterStart, filterEnd) {
     if (mrs.length === 0) {
       return { keys: [], labels: [], merged: [], opened: [], closed: [] };
     }
@@ -1031,10 +1080,17 @@
       else if (mr.state === "closed") b.closed++;
     }
 
-    // Find min/max bucket keys
+    // Find min/max bucket keys, constrained by filterStart/filterEnd if provided
     const keys = [...buckets.keys()].sort();
-    const minKey = keys[0];
-    const maxKey = keys[keys.length - 1];
+    let minKey = keys[0];
+    let maxKey = keys[keys.length - 1];
+
+    if (filterStart) {
+      minKey = getBucketKey(filterStart + "T00:00:00Z", gran);
+    }
+    if (filterEnd) {
+      maxKey = getBucketKey(filterEnd + "T00:00:00Z", gran);
+    }
 
     // Fill in all intermediate empty buckets
     const filled = [];
@@ -1065,11 +1121,35 @@
     };
   }
 
+  function pickSubGranularity(startStr, endStr) {
+    const s = new Date(startStr + "T00:00:00Z");
+    const e = new Date(endStr + "T00:00:00Z");
+    const days = Math.round((e - s) / (1000 * 60 * 60 * 24));
+    if (days <= 14) return "day";
+    if (days <= 90) return "week";
+    if (days <= 730) return "month";
+    return "year";
+  }
+
   function renderTimeline(mrs) {
-    const data = buildTimelineBuckets(mrs, currentGranularity);
+    let gran = currentGranularity;
+    let filterStart = null;
+    let filterEnd = null;
+
+    if (gran === "custom") {
+      if (customRangeStart && customRangeEnd) {
+        gran = pickSubGranularity(customRangeStart, customRangeEnd);
+        filterStart = customRangeStart;
+        filterEnd = customRangeEnd;
+      } else {
+        gran = "month"; // fallback until user picks dates
+      }
+    }
+
+    const data = buildTimelineBuckets(mrs, gran, filterStart, filterEnd);
     timelineBucketKeys = data.keys;
     const colors = getChartColors();
-    const activePeriod = selectedPeriodKey || currentPeriodKey(currentGranularity);
+    const activePeriod = (currentGranularity === "custom") ? null : (selectedPeriodKey || currentPeriodKey(currentGranularity));
 
     // Highlight the selected bar, dim others
     function barColors(baseColor, keys) {
@@ -1114,7 +1194,7 @@
           intersect: false,
         },
         onClick: (_event, elements) => {
-          if (!elements.length) return;
+          if (!elements.length || currentGranularity === "custom") return;
           const idx = elements[0].index;
           const clickedKey = timelineBucketKeys[idx];
           // Toggle: click same bar again to deselect
@@ -1808,6 +1888,14 @@
     const mrs = getFilteredMRs();
     if (period === "all") return mrs;
 
+    if (period === "custom") {
+      if (!detailCustomRangeStart || !detailCustomRangeEnd) return mrs;
+      return mrs.filter((mr) => {
+        const d = toKey(utcDate(mr.created_at));
+        return d >= detailCustomRangeStart && d <= detailCustomRangeEnd;
+      });
+    }
+
     const now = new Date();
     const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     let startDate, endDate;
@@ -1834,6 +1922,13 @@
   }
 
   function getDetailPeriodLabel(period, offset = 0) {
+    if (period === "custom") {
+      if (detailCustomRangeStart && detailCustomRangeEnd) {
+        return formatCustomRangeLabel(detailCustomRangeStart, detailCustomRangeEnd);
+      }
+      return "Custom Range";
+    }
+
     const now = new Date();
     const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const FULL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1859,7 +1954,7 @@
   }
 
   function updateDetailPeriodNav(period, offset) {
-    if (period === "all") {
+    if (period === "all" || period === "custom") {
       detailPeriodNav.hidden = true;
       return;
     }
@@ -1924,6 +2019,7 @@
 
     detailCurrentUsername = username;
     detailPeriodOffset = 0;
+    detailCustomRangePicker.hidden = (detailGranularity !== "custom");
 
     // Period-dependent sections (Metrics, Charts, Collaborators, Repos)
     renderDetailPeriodSections(username, detailGranularity, detailPeriodOffset);
@@ -2021,6 +2117,17 @@
         ? nowUTC.getUTCMonth() + 1
         : 12;
       return { gran: "month", startKey: `${targetYear}-01`, endKey: `${targetYear}-${String(endMonth).padStart(2, "0")}` };
+    }
+    if (period === "custom") {
+      if (detailCustomRangeStart && detailCustomRangeEnd) {
+        const subGran = pickSubGranularity(detailCustomRangeStart, detailCustomRangeEnd);
+        const startBucket = getBucketKey(detailCustomRangeStart + "T00:00:00Z", subGran);
+        const endBucket = getBucketKey(detailCustomRangeEnd + "T00:00:00Z", subGran);
+        return { gran: subGran, startKey: startBucket, endKey: endBucket };
+      }
+      // Fallback: show current month
+      const ek = `${nowUTC.getUTCFullYear()}-${String(nowUTC.getUTCMonth() + 1).padStart(2, "0")}`;
+      return { gran: "month", startKey: ek, endKey: ek };
     }
     if (period === "all") {
       const mrs = getFilteredMRs();
@@ -2255,6 +2362,21 @@
     btn.classList.add("active");
     detailGranularity = btn.dataset.gran;
     detailPeriodOffset = 0;
+    if (detailGranularity === "custom") {
+      detailCustomRangePicker.hidden = false;
+      detailPeriodNav.hidden = true;
+      return; // wait for Apply
+    }
+    detailCustomRangePicker.hidden = true;
+    if (detailCurrentUsername) renderDetailPeriodSections(detailCurrentUsername, detailGranularity, detailPeriodOffset);
+  });
+
+  detailCustomRangeApply.addEventListener("click", () => {
+    const start = detailCustomRangeStartInput.value;
+    const end = detailCustomRangeEndInput.value;
+    if (!start || !end || start > end) return;
+    detailCustomRangeStart = start;
+    detailCustomRangeEnd = end;
     if (detailCurrentUsername) renderDetailPeriodSections(detailCurrentUsername, detailGranularity, detailPeriodOffset);
   });
 

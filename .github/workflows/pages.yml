@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements.txt
-      - run: python fetch_data.py -w 8 -n 3000
+      - run: python fetch_data.py -w 6 -n 50
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
       - uses: actions/upload-pages-artifact@v3

@@ -12,8 +12,8 @@ bot_accounts:
   # Add more bot accounts as needed
 
 repositories:
-  vllm:
-    - url: https://github.com/vllm-project/vllm
   gitlab:
     - url: https://gitlab.com/gitlab-org/gitlab
     - url: https://gitlab.com/gitlab-org/gitlab-runner
+  vllm:
+    - url: https://github.com/vllm-project/vllm

@@ -27,6 +27,7 @@ jobs:
       - run: python fetch_data.py -w 6 -n 50
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend

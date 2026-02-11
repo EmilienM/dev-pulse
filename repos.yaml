@@ -19,13 +19,8 @@ bot_accounts:
   # Add more bot accounts as needed
 
 repositories:
-  gitlab-core:
+  vllm:
+    - url: https://github.com/vllm-project/vllm
+  gitlab:
     - url: https://gitlab.com/gitlab-org/gitlab
-    - url: https://gitlab.com/gitlab-org/gitlab-docs
-      skip_scoring:
-        - lines
-  gitlab-runner:
     - url: https://gitlab.com/gitlab-org/gitlab-runner
-  mobile:
-    - url: https://gitlab.com/fdroid/fdroidclient
-    - url: https://gitlab.com/postmarketos/pmaports

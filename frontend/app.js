@@ -1,4 +1,4 @@
-/** GitLab Contributions Tracker — Team Activity Dashboard */
+/** Dev Pulse — Team Activity Dashboard */
 
 (function () {
   "use strict";
@@ -1761,7 +1761,7 @@
       const finalY = doc.lastAutoTable.finalY + 8;
       doc.setFontSize(7);
       doc.setTextColor(150);
-      doc.text(`Generated on ${new Date().toLocaleString()} \u2014 GitLab Contributions Tracker`, 14, finalY);
+      doc.text(`Generated on ${new Date().toLocaleString()} \u2014 Dev Pulse`, 14, finalY);
 
       const filename = `team-activity-${new Date().toISOString().slice(0, 10)}.pdf`;
       doc.save(filename);
@@ -2012,7 +2012,7 @@
       }
       doc.setFontSize(7);
       doc.setTextColor(150);
-      doc.text(`Generated on ${new Date().toLocaleString()} \u2014 GitLab Contributions Tracker`, 14, y);
+      doc.text(`Generated on ${new Date().toLocaleString()} \u2014 Dev Pulse`, 14, y);
 
       const filename = `contributor-${allTimeContributor.username}-${new Date().toISOString().slice(0, 10)}.pdf`;
       doc.save(filename);

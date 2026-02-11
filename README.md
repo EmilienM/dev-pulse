@@ -21,7 +21,7 @@ A lightweight dashboard that displays team-level aggregate metrics and individua
 
 ### Live Demo
 
-🚀 **Try it now:** [https://my1.fr/glab-stats/](https://my1.fr/glab-stats/)
+🚀 **Try it now:** [https://my1.fr/dev-pulse/](https://my1.fr/dev-pulse/)
 
 ### Fetching Data
 

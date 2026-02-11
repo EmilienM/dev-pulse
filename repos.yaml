@@ -24,9 +24,8 @@ repositories:
     - url: https://gitlab.com/gitlab-org/gitlab-docs
       skip_scoring:
         - lines
+  gitlab-runner:
     - url: https://gitlab.com/gitlab-org/gitlab-runner
   mobile:
     - url: https://gitlab.com/fdroid/fdroidclient
     - url: https://gitlab.com/postmarketos/pmaports
-  fromager:
-    - url: https://github.com/python-wheel-build/fromager
